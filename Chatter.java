@@ -25,6 +25,15 @@ class ChatterInfo  implements Serializable {
 
 	private String username;
 	private String password;
+	private String address;
+	
+	public void setAddress(String address) {
+		this.address = address;
+	}
+	
+	public String getAddress() {
+		return this.address;
+	}
 	
 	public ChatterInfo (String username, String password) {
 		this.username = username;

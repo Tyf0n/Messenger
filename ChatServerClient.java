@@ -63,20 +63,38 @@ class ChatServerClient implements ChatServerClientInterface {
 			serverConnection = new Socket (serverName, 3000);
 			System.out.println( "Connection established to " + serverName );
 			ObjectOutputStream oos = new ObjectOutputStream(serverConnection.getOutputStream());
-			ObjectInputStream ois = new ObjectInputStream(serverConnection.getInputStream());
+			ObjectInputStream ois  = new ObjectInputStream(serverConnection.getInputStream());
 			
+			System.out.println( "Sending REGISTER command to server." );
 			sendServerCommand(ServerCommand.REGISTER,oos);
-			recieveAcknowledgement(ois);
-			oos.writeObject(c.getInfo());
+			
+			System.out.println( "Waiting for acknowledgement from server." );
 			recieveAcknowledgement(ois);
 			
-			/*
+			System.out.println( "Sending info to server." );
+			oos.writeObject(c.getInfo());
+			
+			System.out.println( "Waiting for acknowledgement from server." );
+			recieveAcknowledgement(ois);
+			
+			System.out.println( "Sending GET_MEMBERS command to server." );
 			sendServerCommand(ServerCommand.GET_MEMBERS,oos);
+			
+			System.out.println( "Waiting for acknowledgement from server." );
+			recieveAcknowledgement(ois);
+			
+			System.out.println( "Recieving chatters information from server." );
 			ChatterInfo[] chatters = (ChatterInfo[]) ois.readObject();
+			
 			for (ChatterInfo ci:chatters) {
 				System.out.println(ci);
 			}
-			*/
+
+			System.out.println( "Sleeping for 10 seconds before exit." );
+			Thread.sleep(10000);
+			oos.close();
+			ois.close();
+			serverConnection.close();
 		}
 		catch (Exception e) {
 		
