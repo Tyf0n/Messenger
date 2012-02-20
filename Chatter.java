@@ -5,7 +5,7 @@ class Chatter {
 
 	private ChatterInfo info;
 	
-	ChatServerClientInterface c;
+	ChatClientInterface c;
 	
 	public Chatter (String userName) {
 	
