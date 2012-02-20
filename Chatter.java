@@ -3,17 +3,13 @@ import java.io.*;
 
 class Chatter {
 
-	
-	private String chatServer = "localhost";
 	private ChatterInfo info;
 	
 	ChatServerClientInterface c;
 	
 	public Chatter (String userName) {
 	
-		c = ChatServerClient.getClientObject(chatServer,userName,"");
 		info = new ChatterInfo(userName, "");
-		c.connect(this);
 	}
 	
 	public ChatterInfo getInfo() {
@@ -21,7 +17,7 @@ class Chatter {
 	}
 }
 
-class ChatterInfo  implements Serializable {
+class ChatterInfo implements Serializable {
 
 	private String username;
 	private String password;

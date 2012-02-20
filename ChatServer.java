@@ -14,7 +14,7 @@ import java.io.*;
 // These are the commands that are sent from the clients.
 interface ServerCommandInterface {
 
-	void process(ChatServer cs, Socket connection, ObjectInputStream ois, ObjectOutputStream oos) throws Exception;
+	void process(ClientHandler ch) throws Exception;
 }
 
 enum ServerCommand implements ServerCommandInterface {
@@ -22,7 +22,13 @@ enum ServerCommand implements ServerCommandInterface {
     // The command to register a new chatter.
 	REGISTER {
 	
-		public void process(ChatServer cs, Socket connection, ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
+		public void process(ClientHandler ch) throws Exception {
+			
+			// Get all the required variables
+			ChatServer cs          = ch.getChatServer();
+			ObjectInputStream ois  = ch.getInputStream();
+			ObjectOutputStream oos = ch.getOutputStream();
+			Socket connection      = ch.getConnection();
 			
 			// Send the acknowledgement that I will process the request.
 			System.out.println( "Sending acknowledgement for command." );
@@ -36,19 +42,26 @@ enum ServerCommand implements ServerCommandInterface {
 						
 			// Add the chatter info object to the list of chatters.
 			System.out.println( "Adding new chatter." );
-			cs.addChatter(newChatter);
+			cs.addChatter(newChatter,ch);
 			
 			// Send the acknowledgement that I have registered.
 			System.out.println( "Sending acknowledgement." );
 			cs.sendAcknowledgement(oos);
+			
+			cs.updateAllHandlers();
 		}
 	},
 
 	// The command to unregister a chatter.
 	UNREGISTER {
 	
-		public void process(ChatServer cs, Socket connection, ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
-			
+		public void process(ClientHandler ch) throws Exception {
+
+			// Get all the required variables
+			ChatServer cs          = ch.getChatServer();
+			ObjectInputStream ois  = ch.getInputStream();
+			ObjectOutputStream oos = ch.getOutputStream();
+		
 			// Send the acknowledgement that I will process the request.
 			System.out.println( "Sending acknowledgement for command." );
 			cs.sendAcknowledgement(oos);
@@ -71,8 +84,12 @@ enum ServerCommand implements ServerCommandInterface {
 	// The command to get all the chatters information.
 	GET_MEMBERS {
 	
-		public void process(ChatServer cs, Socket connection, ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
-			
+		public void process(ClientHandler ch) throws Exception {
+
+			// Get all the required variables
+			ChatServer cs          = ch.getChatServer();
+			ObjectOutputStream oos = ch.getOutputStream();
+		
 			// Send the acknowledgement that I will process the request.
 			System.out.println( "Sending acknowledgement for command." );
 			cs.sendAcknowledgement(oos);
@@ -103,7 +120,7 @@ interface ChatServerInterface {
 	
 	//  Methods to add or remove a chatter
 	public boolean removeChatter(int index);
-	public boolean addChatter(ChatterInfo c);
+	public boolean addChatter(ChatterInfo c,ClientHandler ch);
 	
 	// The method to send acknowledgements to the clients
 	public void sendAcknowledgement (ObjectOutputStream oos) throws Exception;
@@ -120,7 +137,7 @@ class ChatServer implements ChatServerInterface {
 	ServerSocket ss;
 	
 	// The below list will have the list of chatters.
-	ArrayList<ChatterInfo> list;
+	ArrayList<Registration> list;
 
 	// This routine will send acknowledgement to the clients
 	public void sendAcknowledgement (ObjectOutputStream oos) throws Exception {
@@ -132,7 +149,7 @@ class ChatServer implements ChatServerInterface {
 	// For now, this will just initialize the array list.
 	public ChatServer() {
 	
-		this.list = new ArrayList<ChatterInfo>();
+		this.list = new ArrayList<Registration>();
 	}
 	
 	// A factory method to return a interface object for the chat server.
@@ -166,6 +183,8 @@ class ChatServer implements ChatServerInterface {
 				Socket client = ss.accept();
 				System.out.println( "Accepted connection from " + client.getInetAddress() );
 				
+				// Create a new client handler for this. The ClientHandler should take care of necessary
+				// things for registering this new chatter.
 				ClientHandler ch = new ClientHandler(this, client);
 			}
 			catch (Exception e) { 
@@ -175,6 +194,7 @@ class ChatServer implements ChatServerInterface {
 		}
 	}
 
+	// A helper routine to print information about all the chatters.
 	public void printChatters() {
 	
 		for (int i=0; i<list.size(); i++) {
@@ -183,25 +203,29 @@ class ChatServer implements ChatServerInterface {
 		}
 	}
 	
-
+	// Returns the ID of the chatter based on the username. This routine searches through
+	// all the registrations to find out the correct one by the username.
 	public int getChatterByName(String username) {
 		for(int i=0; i<list.size(); i++) {
-			if (list.get(i).getName().equals(username)) {
+			if (list.get(i).getChatterInfo().getName().equals(username)) {
 				return i;
 			}
 		}
 		return -1;
 	}
 	
+	// Returns the ID of the chatter based on the IP address of the connection. This routine
+	// searches through all the registrations to find out the correct one by the ip address.
 	public int getChatterByAddress(String address) {
 		for(int i=0; i<list.size(); i++) {
-			if (list.get(i).getAddress().equals(address)) {
+			if (list.get(i).getChatterInfo().getAddress().equals(address)) {
 				return i;
 			}
 		}
 		return -1;	
 	}
-		
+	
+	// This function removes the chatter, given the index of the registration.
 	public boolean removeChatter(int index) {
 		if (index == -1) {
 			return false;
@@ -212,23 +236,65 @@ class ChatServer implements ChatServerInterface {
 		return true;
 	}
 	
-	public boolean addChatter(ChatterInfo newChatter) {
+	// This function creates a new registration object and adds the chatter.
+	public boolean addChatter(ChatterInfo newChatter,ClientHandler ch) {
 		System.out.println( "Adding new chatter: " + newChatter );
-		list.add(newChatter);
+		list.add(new Registration(ch,newChatter));
 		return true;
 	}
 	
+	// This function sends a message to all the client handlers to send a message
+	// to their clients to update the members.
+	public void updateAllHandlers() {
+		for(int i=0; i<list.size(); i++) {
+			System.out.println( "Asking to update.." );
+			list.get(i).getClientHandler().sendUpdateMsg();
+		}		
+	}
+	
+	// This function returns an array of chatters.
 	public ChatterInfo[] getChatters() {
 	
 		ChatterInfo[] chatters = new ChatterInfo[list.size()];
-		list.toArray(chatters);
+		for(int i=0; i<list.size(); i++) {
+			chatters[i] = list.get(i).getChatterInfo();
+		}
 		return chatters;
 	}
 
+	// The main routine for the chat server. Just listen for connections.
 	public static void main(String[] args) {
 
 		ChatServerInterface c = ChatServer.getChatServerObject();
 		c.listen();
+	}
+}
+
+// A object which composes the pair of information of client and the object
+// which handles the client. For most of the operations, the information
+// of client is used, and for lesser operations, the registration object is
+// used.
+class Registration {
+
+	ClientHandler ch;
+	ChatterInfo ci;
+	
+	public Registration(ClientHandler ch,ChatterInfo ci) {
+		this.ch = ch;
+		this.ci = ci;
+	}
+	
+	public ClientHandler getClientHandler() {
+		return ch;
+	}
+	
+	public ChatterInfo getChatterInfo() {
+		return ci;
+	}
+	
+	public String toString() {
+		String res = ci.toString();
+		return res;
 	}
 }
 
@@ -248,6 +314,10 @@ class ClientHandler implements Runnable {
 	
 	// The thread object that will be initialized later.
 	Thread runner;
+
+	// Initialize the output and input streams for socket communication.
+	ObjectOutputStream oos;
+	ObjectInputStream ois;
 	
 	ClientHandler( ChatServer cs, Socket connection ) {
 	
@@ -264,12 +334,36 @@ class ClientHandler implements Runnable {
 		runner.start();
 	}
 	
+	// A set of getXX routines to get the various variables.
+	public ChatServer getChatServer() {
+		return cs;
+	}
+	
+	public Socket getConnection() {
+		return connection;
+	}
+	
+	public ObjectOutputStream getOutputStream() {
+		return oos;
+	}
+	
+	public ObjectInputStream getInputStream() {
+		return ois;
+	}
+	
+	public void sendUpdateMsg() {
+	
+		try {
+			oos.writeObject(ClientCommand.UPDATE_MEMBERS);
+		}
+		catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
 	// The execution routine for the thread handling the client connection.
 	public void run() {
 	
-		// Initialize the output and input streams for socket communication.
-		ObjectOutputStream oos;
-		ObjectInputStream ois;
 		try {
 			oos = new ObjectOutputStream(connection.getOutputStream());
 			ois = new ObjectInputStream(connection.getInputStream());
@@ -286,7 +380,7 @@ class ClientHandler implements Runnable {
 				// Process the command that was sent by the client.
 				ServerCommandInterface sci = (ServerCommandInterface)ois.readObject();
 				System.out.println( "Thread processing command: " + sci);
-				sci.process(this.cs,connection,ois,oos);
+				sci.process(this);
 				System.out.println( "Done processing command: " + sci );
 			}
 		}
@@ -300,6 +394,17 @@ class ClientHandler implements Runnable {
 			System.out.println( "Removing chatter at " + address );
 			int index = cs.getChatterByAddress(address.toString());
 			cs.removeChatter(index);
+			cs.updateAllHandlers();
+			System.out.println( "Thread exiting." );
+			return;
+		}
+		catch (SocketException e) {
+		
+			System.out.println( "Client " + address + " disconnected " );
+			System.out.println( "Removing chatter at " + address );
+			int index = cs.getChatterByAddress(address.toString());
+			cs.removeChatter(index);
+			cs.updateAllHandlers();
 			System.out.println( "Thread exiting." );
 			return;
 		}
