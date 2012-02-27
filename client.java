@@ -1,9 +1,18 @@
 
+
 import java.util.*;
+
+interface CommandlineInterface {
+
+    void processInput(String lineInput,client cmdlineObject);
+    void setToFocus();
+    void setOutOfFocus();
+}
 
 class client {
 
 	private ChatClient cc;
+    private CommandlineInterface focussedCli;
 
 	public static void main(String[] args) {
 	
@@ -20,7 +29,7 @@ class client {
 	
 	public client(String serverName,String username,String password) {
 		cc = new ChatClient(serverName,username,"");
-	}
+    }
 
 	public void connect() {
 		cc.connect();
@@ -35,22 +44,22 @@ class client {
 		String userName = sc.nextLine();
 		
 		cc = new ChatClient(serverName,userName,"");
+        
 	}
+    
+    public void changeFocus(CommandlineInterface cli) {
+        focussedCli = cli;
+    }
 	
 	void run() {
 	
+        changeFocus((CommandlineInterface)cc);
+        focussedCli.processInput("list",this);
 		Scanner sc = new Scanner(System.in);
 		while(true) {
-		
-			System.out.print ("Enter action: ");
-			String action = sc.nextLine();
-			
-			if (action.equals("list")) {
-				cc.printChatters();			
-			}
-			else if (action.equals("exit")) {
-				System.exit(0);			
-			}
+            
+            String lineOfText = sc.nextLine();
+            focussedCli.processInput(lineOfText,this);
 		}
 	}
 }

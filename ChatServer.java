@@ -26,10 +26,7 @@ interface ChatServerInterface {
 	
 	//  Methods to add or remove a chatter
 	public boolean removeChatter(int index);
-	public boolean addChatter(ChatterInfo c,ClientHandler ch);
-	
-	// The method to send acknowledgements to the clients
-	public void sendAcknowledgement (ObjectOutputStream oos) throws Exception;
+	public boolean addChatter(ChatterInfo c,ChatServerConnectionManager ch);
 	
 	// Method to get the list of all the chatters
 	public ChatterInfo[] getChatters();
@@ -44,12 +41,6 @@ class ChatServer implements ChatServerInterface {
 	
 	// The below list will have the list of chatters.
 	ArrayList<Registration> list;
-
-	// This routine will send acknowledgement to the clients
-	public void sendAcknowledgement (ObjectOutputStream oos) throws Exception {
-
-		oos.writeObject(ClientCommand.ACKNOWLEDGEMENT);
-	}
 
 	// The default constructor.
 	// For now, this will just initialize the array list.
@@ -89,9 +80,9 @@ class ChatServer implements ChatServerInterface {
 				Socket client = ss.accept();
 				System.out.println( "Accepted connection from " + client.getInetAddress() );
 				
-				// Create a new client handler for this. The ClientHandler should take care of necessary
+				// Create a new client handler for this. The ChatServerConnectionManager should take care of necessary
 				// things for registering this new chatter.
-				ClientHandler ch = new ClientHandler(this, client);
+				ChatServerConnectionManager ch = new ChatServerConnectionManager(this, client);
 			}
 			catch (Exception e) { 
 		
@@ -131,6 +122,10 @@ class ChatServer implements ChatServerInterface {
 		return -1;	
 	}
 	
+	public ChatServerConnectionManager getConnectionManager(int i) {
+		return list.get(i).getChatServerConnectionManager();
+	}
+	
 	// This function removes the chatter, given the index of the registration.
 	public boolean removeChatter(int index) {
 		if (index == -1) {
@@ -143,7 +138,7 @@ class ChatServer implements ChatServerInterface {
 	}
 	
 	// This function creates a new registration object and adds the chatter.
-	public boolean addChatter(ChatterInfo newChatter,ClientHandler ch) {
+	public boolean addChatter(ChatterInfo newChatter,ChatServerConnectionManager ch) {
 		System.out.println( "Adding new chatter: " + newChatter );
 		list.add(new Registration(ch,newChatter));
 		return true;
@@ -154,7 +149,7 @@ class ChatServer implements ChatServerInterface {
 	public void updateAllHandlers() {
 		for(int i=0; i<list.size(); i++) {
 			System.out.println( "Asking to update.." );
-			list.get(i).getClientHandler().sendUpdateMsg();
+			list.get(i).getChatServerConnectionManager().queueCommand(ServerCommand.ASK_CLIENT_TO_UPDATE);
 		}		
 	}
 	
@@ -182,15 +177,15 @@ class ChatServer implements ChatServerInterface {
 // used.
 class Registration {
 
-	ClientHandler ch;
+	ChatServerConnectionManager ch;
 	ChatterInfo ci;
 	
-	public Registration(ClientHandler ch,ChatterInfo ci) {
+	public Registration(ChatServerConnectionManager ch,ChatterInfo ci) {
 		this.ch = ch;
 		this.ci = ci;
 	}
 	
-	public ClientHandler getClientHandler() {
+	public ChatServerConnectionManager getChatServerConnectionManager() {
 		return ch;
 	}
 	
